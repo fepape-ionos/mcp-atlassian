@@ -995,6 +995,7 @@ class TestMCPProtocolIntegration:
             ),
         ],
     )
+    @pytest.mark.parametrize("loaded_auth_type", ["basic", "oauth"])
     async def test_lifespan_deferred_pat_priority(
         self,
         service: str,
@@ -1002,6 +1003,7 @@ class TestMCPProtocolIntegration:
         username_var: str,
         api_token_var: str,
         command_var: str,
+        loaded_auth_type: str,
     ) -> None:
         """A deferred Server/DC PAT keeps the precedence a static one would have."""
         env = {
@@ -1010,6 +1012,15 @@ class TestMCPProtocolIntegration:
             api_token_var: "static-basic-token",
             command_var: f"get-{service}-pat",
         }
+        if loaded_auth_type == "oauth":
+            env.update(
+                {
+                    "ATLASSIAN_OAUTH_CLIENT_ID": "client-id",
+                    "ATLASSIAN_OAUTH_CLIENT_SECRET": "client-secret",
+                    "ATLASSIAN_OAUTH_REDIRECT_URI": "http://localhost/callback",
+                    "ATLASSIAN_OAUTH_SCOPE": "read",
+                }
+            )
         with (
             MockEnvironment.clean_env(),
             patch.dict(os.environ, env),
@@ -1023,7 +1034,7 @@ class TestMCPProtocolIntegration:
                 # The eager config stays available for URL/SSL inheritance.
                 loaded_config = getattr(app_context, f"full_{service}_config")
                 assert loaded_config is not None
-                assert loaded_config.auth_type == "basic"
+                assert loaded_config.auth_type == loaded_auth_type
                 assert getattr(app_context, f"has_deferred_{service}_auth") is True
 
         run_command.assert_not_called()
